@@ -1,247 +1,101 @@
-#define _CRT_SECURE_NO_WARNINGS
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
+#define MAX_VALUE ((unsigned long long)1<<32) //2^31
+#define N 100000
+typedef struct Generator {
+    int a; //mnożnik
+    int c; //przyrost
+    long long seed;
+}Generator;
 
-#define CITY_NUMBER 6
-#define CITY_SUBSET 4
+typedef struct LFSR {
+    uint32_t seed;
+    uint32_t p;
+    uint32_t q;
+}LFSR;
 
-typedef struct City {
-	int id;
-    char name[20];
-	int population;
-	float x;
-	float y;
-}City;
 
-typedef struct Indexes{
-  int counter; //licznik permutacji
-  int perm_index; //określa która to permutacja
-  int isUsed; //okresla czy miasto bylo wykorzystane w permutacji
-}Indexes;
+int match_range(uint32_t number) {
+    int range = MAX_VALUE / 10;
 
-typedef struct Permutation{
-    float min_path;
-    int* min_permutation;
-    int* citizens_permutation; //przechowuje ścieżkę, dla której liczba mieszkancow jest najblizsza 50% wszystkich
-    int citizens;
-    int closest_value;
-}Permutation;
+    if (number >= 0 && number <= range) return 0;
+    else if (number > range && number <= 2 * range) return 1;
+    else if (number > 2 * range && number <= 3 * range) return 2;
+    else if (number > 3 * range && number <= 4 * range) return 3;
+    else if (number > 4 * range && number <= 5 * range) return 4;
+    else if (number > 5 * range && number <= 6 * range) return 5;
+    else if (number > 6 * range && number <= 7 * range) return 6;
+    else if (number > 7 * range && number <= 8 * range) return 7;
+    else if (number > 8 * range && number <= 9 * range) return 8;
+    else if (number > 9 * range && number <= MAX_VALUE) return 9;
 
-//1 2 3 4 - indexy miast
-float count_distance(City** cities, int* path){
-    float d = 0;
-    float l = 0;
-    for(int i=1; i<CITY_SUBSET; i++){
-        float Xa = cities[path[i-1]-1]->x;
-        float Ya = cities[path[i-1]-1]->y;
-        float Xb = cities[path[i]-1]->x;
-        float Yb = cities[path[i]-1]->y;
-        l = sqrtf(((Xb-Xa)*(Xb-Xa)) + (Yb-Ya)*(Yb-Ya));
-        d += l;
-    }
-    //oddzielnie dodanie odleglosci z ostatniego miasta w permutacji do pierwszego(zamkniecie cyklu)
-    float Xa = cities[path[CITY_SUBSET-1]-1]->x;
-    float Ya = cities[path[CITY_SUBSET-1]-1]->y;
-    float Xb = cities[path[0]-1]->x;
-    float Yb = cities[path[0]-1]->y;
-    l = sqrtf(((Xb-Xa)*(Xb-Xa)) + (Yb-Ya)*(Yb-Ya));
-    d+=l;
-    return d;
+    return -1;  // Jeśli liczba jest poza zakresem
 }
 
-int count_citizens(City** cities, int* path){ //zwraca sume mieszkancow z analizowanej permutacji
-    int sum=0;
-    for(int i=0; i<CITY_SUBSET; i++){
-        sum+=cities[path[CITY_SUBSET-1]-1]->population;
+void linear_generator(Generator* gen, long long* buckets) {
+    int index = 0;
+    for (int i = 0; i<N; i++) {
+        index = match_range(gen->seed);
+       if (index!=-1) {
+            buckets[index]++;
+            gen->seed = ((unsigned long long)gen->a*gen->seed + gen->c)%MAX_VALUE;
+        }else {
+            printf("Wystapil blad indexowania!\n");
+            return;
+        }
     }
-    return sum;
+    int counter=0;
+    printf("Rozklad liczb dla Generatora Liniowego:\n");
+    for (int i = 0; i<10; i++) {
+        printf("%d ", buckets[i]);
+        counter+=buckets[i];
+    }
+    printf("\n%d\n",counter);
 }
 
-void check_population(City** cities, int* path, Permutation* perm) { //sprawdza liczbe mieszkancow w permutacji
-    int count_people = 0;
-    for(int i = 1; i < CITY_SUBSET; i++){
-        count_people+=cities[path[i-1]-1]->population;
-    }
-    if((abs(perm->citizens - count_people))< perm->closest_value){
-        perm->closest_value = count_people;
-        for(int i = 0; i<CITY_SUBSET; i++){
-            perm->citizens_permutation[i]=path[i];
-        }
-    }
-}
-
-void free_memory(City** cities, Permutation* perm, int* path, int* used) {
-    for (int i = 0; i < CITY_NUMBER; i++) {
-        if (cities[i] != NULL) {
-            free(cities[i]);
-        }
-    }
-    free(perm->min_permutation);
-    free(perm->citizens_permutation);
-    free(path);
-    free(used);
-}
-//path-określa obecną permutację, used - przechowuje miasta juz wykorzystane w danej gałęzi, struktury pomocnicze
-void wariations(int* path, int* used, Indexes* indexes, City** cities, Permutation* perm) {
-    if (indexes->perm_index == CITY_SUBSET) {
-        printf("%d. ",indexes->counter);
-        for(int i=0;i < CITY_SUBSET; i++){
-            printf("%d ",path[i]);
-        }
-        indexes->counter++;
-        printf("\n");
-        check_population(cities, path, perm); //sprawdzamy, czy obecna pełna ścieżka, jest bliższa 50% od obecnej minimalnej
-        //TODO:SPRAWDZIC CZY MIN_PATH JEST MNIEJSZA OD POPRZEDNIEJ I W RAZIE W ZMIENIC PRZECHOWYWANĄ PERMUTACJE
-        float check_path = count_distance(cities, path);
-        if (perm->min_path > check_path) {
-            for (int j = 0; j < CITY_SUBSET; j++) {
-                perm->min_permutation[j] = path[j]; //ustawiamy bieżącą permutację, jako najmniejszą
-            }
-            perm->min_path = check_path; //minimalna ścieżka
-            perm->citizens = count_citizens(cities, path); //liczba mieszkancow minimalnej ścieżki
-        }
-        indexes->counter++;
-        return;
-    }
-
-    for (int i = 0; i < CITY_NUMBER; i++) {
-        for (int j = 0; j < CITY_SUBSET; j++) {
-            if ((i + 1 == used[j]) && (used[j] != 0)) indexes->isUsed = 1;
-        }
-        if (indexes->isUsed == 0) {
-            used[indexes->perm_index] = i + 1;
-            path[indexes->perm_index] = i + 1;
-            (indexes->perm_index)++;
-            wariations(path, used, indexes, cities, perm);
-            if (indexes->perm_index > 0) {
-                used[indexes->perm_index] = 0;
-                used[indexes->perm_index] = 0;
-                (indexes->perm_index)--;
-            }
-        } else {
-            indexes->isUsed = 0;
-        }
+void LFSR_generator(LFSR* gen, long long* buckets) {
+    uint32_t curr_seed = gen->seed;
+    uint32_t bit_p = 1 << (gen->p); //shifting mask bit to p,q position
+    uint32_t bit_q = 1 << (gen->q);
+    bit_p = bit_p & curr_seed; //getting p,q bits from current seed
+    bit_q = bit_q & curr_seed;
+    bit_p = bit_p >> (gen->p);
+    bit_q = bit_q >> (gen->q);
+    uint32_t new_bit = (bit_p + bit_q)%2; //calculating (p xor q)
+    curr_seed = gen->seed >> 1; //shifting curr_seed
+    new_bit = new_bit << 31; // shifting calculated bit to the last pos of 32-bit register
+    gen->seed = (uint32_t)(curr_seed | new_bit); //placing new bit in the last position of new seed
+    //printf("%u ", gen->seed);
+    int index = match_range(gen->seed);
+    if (index!=-1) {
+        buckets[index]++;
     }
 }
 
-void combinations(int* path, int* used, Indexes* indexes) {
-    if (indexes->perm_index == CITY_NUMBER) {
-        //checking number of citizens
-        printf("%d. ",indexes->counter);
-        for(int i=0;i < CITY_NUMBER; i++){
-            printf("%d ",path[i]);
-        }
-        indexes->counter++;
-        printf("\n");
-        return;
+int main(void) {
+    Generator lin_gen;
+    lin_gen.a = 69069;
+    lin_gen.c = 2;
+    lin_gen.seed = 15;
+    unsigned long long buckets[10]={0};
+    linear_generator(&lin_gen,buckets);
+    LFSR lfsr_gen;
+    lfsr_gen.seed = 0xDEADBEEF;
+    lfsr_gen.q = 28;
+    lfsr_gen.p = 31;
+    uint8_t test=15; //0001111
+
+    unsigned long long buckets2[10] = {0};
+    int counter = 0;
+    for (int i=0; i<N; i++) {
+        LFSR_generator(&lfsr_gen, buckets2);
     }
-    for (int i = 0; i < CITY_NUMBER; i++) {
-        for (int j = 0; j < CITY_SUBSET; j++) {
-            if ((i + 1 == used[j]) && (used[j] != 0)) indexes->isUsed = 1;
-        }
-        if (indexes->isUsed == 0) {
-            used[indexes->perm_index] = i + 1;
-            path[indexes->perm_index] = i + 1;
-            (indexes->perm_index)++;
-            combinations(path, used, indexes);
-            if (indexes->perm_index > 0) {
-                used[indexes->perm_index] = 0;
-                used[indexes->perm_index] = 0;
-                (indexes->perm_index)--;
-            }
-        } else {
-            indexes->isUsed = 0;
-        }
+    printf("Rozklad liczb dla Generatora opartego na rejestrach przesuwnych:\n");
+    for (int i = 0; i < 10; i++) {
+        printf("%llu ", buckets2[i]);
+        counter+=buckets2[i];
     }
-}
-
-
-int main() {
-	FILE* france;
-	france = fopen("C:\\Users\\rysie\\CLionProjects\\untitled5\\france.txt", "r");
-	if (france == NULL) {
-		printf("Nie udalo sie odczytac pliku\n");
-	}
-	else {
-		printf("Udalo sie otworzyc plik!\n");
-	}
-
-
-	City* cities[CITY_NUMBER];
-
-	//ALOCATING SPACE FOR EACH CITY
-	for (int i = 0; i < CITY_NUMBER; i++) {
-		cities[i] = (City*)malloc(sizeof(City));
-        cities[i]->id=0;
-        for(int j=0; j<20; j++){
-            cities[i]->name[j]='0';
-        }
-        cities[i]->population=0;
-        cities[i]->x=0;
-        cities[i]->y=0;
-	}
-	fscanf(france, "%*[^\n]");
-    Permutation perm;
-    perm.citizens=0;
-    for (int i = 0; i < CITY_NUMBER; i++) {
-        int result = fscanf(france, "%d %*s %d %f %f",
-                            &cities[i]->id,
-                            &cities[i]->population,
-                            &cities[i]->x,
-                            &cities[i]->y);
-        if (result != 4) {
-            printf("Blad przy czytaniu linii numer %d\n", i + 1);
-            break;
-        }
-        perm.citizens += cities[i]->population;
-    }
-    perm.citizens /= 2; //50% z liczby wszystkich mieszkańców miast
-
-    fclose(france);
-
-    Indexes index;
-    index.perm_index=0;
-    index.counter=1;
-    index.isUsed=0;
-    perm.min_permutation=malloc(CITY_SUBSET*sizeof(int));
-    perm.citizens_permutation=malloc(CITY_SUBSET*sizeof(int));
-    for(int i=0; i<CITY_SUBSET; i++){
-        perm.min_permutation[i]=0;
-        perm.citizens_permutation[i]=0;
-    }
-    perm.min_path=INT_MAX;
-    perm.closest_value = INT_MAX;
-    int* path = malloc(CITY_NUMBER*sizeof(int));
-    int* used = malloc(CITY_NUMBER*sizeof(int));
-
-    if(!perm.min_permutation || !path || !used){
-        perror("blad malloc dla perm/path/used");
-        free_memory(cities, &perm, path, used);
-        return 1;
-    }
-
-    for(int i=0; i<CITY_SUBSET; i++){
-        path[i]=0;
-        used[i]=0;
-    }
-//////WYSWIETLANIE NAJBLIZSZEJ PERMUTACJI DO 50%
-    wariations(path, used, &index, cities, &perm);
-    //combinations(path,used,&index);
-    printf("\n50% wszystkich mieszkancow: %d Najblizsza wartosc do 50%: %d\n",perm.citizens,perm.closest_value);
-    for(int i = 0; i < CITY_SUBSET; i++){
-        printf("%d ", perm.citizens_permutation[i]);
-    }
-    printf("\n");
-
-
-//////WYSWIETLANIE MINIMALNEJ DROGI KOMIWOJAZERA WRAZ Z DYSTANSEM
-    printf("\nMinimalny dystans: %f\n", perm.min_path);
-    for(int i = 0; i < CITY_SUBSET; i++){
-        printf("%d ", cities[perm.min_permutation[i]-1]->id);
-    }
-
-    // Zwalnianie pamięci
-    free_memory(cities, &perm, path, used);
+    printf("\n%d",counter);
     return 0;
 }
