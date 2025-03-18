@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define CITY_NUMBER 7
-#define CITY_SUBSET 5
+#define CITY_NUMBER 6
+#define CITY_SUBSET 4
 
 typedef struct City {
 	int id;
@@ -15,15 +15,15 @@ typedef struct City {
 }City;
 
 typedef struct Indexes{
-  int counter;
-  int perm_index;
-  int isUsed;
+  int counter; //licznik permutacji
+  int perm_index; //określa która to permutacja
+  int isUsed; //okresla czy miasto bylo wykorzystane w permutacji
 }Indexes;
 
 typedef struct Permutation{
     float min_path;
     int* min_permutation;
-    int* citizens_permutation;
+    int* citizens_permutation; //przechowuje ścieżkę, dla której liczba mieszkancow jest najblizsza 50% wszystkich
     int citizens;
     int closest_value;
 }Permutation;
@@ -38,8 +38,9 @@ float count_distance(City** cities, int* path){
         float Xb = cities[path[i]-1]->x;
         float Yb = cities[path[i]-1]->y;
         l = sqrtf(((Xb-Xa)*(Xb-Xa)) + (Yb-Ya)*(Yb-Ya));
-        d+=l;
+        d += l;
     }
+    //oddzielnie dodanie odleglosci z ostatniego miasta w permutacji do pierwszego(zamkniecie cyklu)
     float Xa = cities[path[CITY_SUBSET-1]-1]->x;
     float Ya = cities[path[CITY_SUBSET-1]-1]->y;
     float Xb = cities[path[0]-1]->x;
@@ -49,7 +50,7 @@ float count_distance(City** cities, int* path){
     return d;
 }
 
-int count_citizens(City** cities, int* path){
+int count_citizens(City** cities, int* path){ //zwraca sume mieszkancow z analizowanej permutacji
     int sum=0;
     for(int i=0; i<CITY_SUBSET; i++){
         sum+=cities[path[CITY_SUBSET-1]-1]->population;
@@ -57,7 +58,7 @@ int count_citizens(City** cities, int* path){
     return sum;
 }
 
-void check_population(City** cities, int* path,Permutation* perm) {
+void check_population(City** cities, int* path, Permutation* perm) { //sprawdza liczbe mieszkancow w permutacji
     int count_people = 0;
     for(int i = 1; i < CITY_SUBSET; i++){
         count_people+=cities[path[i-1]-1]->population;
@@ -81,7 +82,7 @@ void free_memory(City** cities, Permutation* perm, int* path, int* used) {
     free(path);
     free(used);
 }
-
+//path-określa obecną permutację, used - przechowuje miasta juz wykorzystane w danej gałęzi, struktury pomocnicze
 void wariations(int* path, int* used, Indexes* indexes, City** cities, Permutation* perm) {
     if (indexes->perm_index == CITY_SUBSET) {
         printf("%d. ",indexes->counter);
@@ -90,20 +91,20 @@ void wariations(int* path, int* used, Indexes* indexes, City** cities, Permutati
         }
         indexes->counter++;
         printf("\n");
-        //checking number of citizens
-        check_population(cities, path, perm);
+        check_population(cities, path, perm); //sprawdzamy, czy obecna pełna ścieżka, jest bliższa 50% od obecnej minimalnej
         //TODO:SPRAWDZIC CZY MIN_PATH JEST MNIEJSZA OD POPRZEDNIEJ I W RAZIE W ZMIENIC PRZECHOWYWANĄ PERMUTACJE
         float check_path = count_distance(cities, path);
         if (perm->min_path > check_path) {
             for (int j = 0; j < CITY_SUBSET; j++) {
-                perm->min_permutation[j] = path[j];
+                perm->min_permutation[j] = path[j]; //ustawiamy bieżącą permutację, jako najmniejszą
             }
-            perm->min_path = check_path;
-            perm->citizens = count_citizens(cities, path);
+            perm->min_path = check_path; //minimalna ścieżka
+            perm->citizens = count_citizens(cities, path); //liczba mieszkancow minimalnej ścieżki
         }
         indexes->counter++;
         return;
     }
+
     for (int i = 0; i < CITY_NUMBER; i++) {
         for (int j = 0; j < CITY_SUBSET; j++) {
             if ((i + 1 == used[j]) && (used[j] != 0)) indexes->isUsed = 1;
@@ -158,7 +159,7 @@ void combinations(int* path, int* used, Indexes* indexes) {
 
 int main() {
 	FILE* france;
-	france = fopen("C:\\Users\\rysie\\OneDrive\\Pulpit\\MP_lab1\\france.txt", "r");
+	france = fopen("C:\\Users\\rysie\\CLionProjects\\untitled5\\france.txt", "r");
 	if (france == NULL) {
 		printf("Nie udalo sie odczytac pliku\n");
 	}
@@ -227,7 +228,7 @@ int main() {
 //////WYSWIETLANIE NAJBLIZSZEJ PERMUTACJI DO 50%
     wariations(path, used, &index, cities, &perm);
     //combinations(path,used,&index);
-    printf("\nNajblizsza wartosc do 50%: %d\n",perm.closest_value);
+    printf("\n50% wszystkich mieszkancow: %d Najblizsza wartosc do 50%: %d\n",perm.citizens,perm.closest_value);
     for(int i = 0; i < CITY_SUBSET; i++){
         printf("%d ", perm.citizens_permutation[i]);
     }
