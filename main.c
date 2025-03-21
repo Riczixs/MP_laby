@@ -56,17 +56,25 @@ void linear_generator(Generator* gen, long long* buckets) {
 
 void LFSR_generator(LFSR* gen, long long* buckets) {
     uint32_t curr_seed = gen->seed;
-    uint32_t bit_p = 1 << (gen->p); //shifting mask bit to p,q position
-    uint32_t bit_q = 1 << (gen->q);
-    bit_p = bit_p & curr_seed; //getting p,q bits from current seed
-    bit_q = bit_q & curr_seed;
-    bit_p = bit_p >> (gen->p);
-    bit_q = bit_q >> (gen->q);
-    uint32_t new_bit = (bit_p + bit_q)%2; //calculating (p xor q)
-    curr_seed = gen->seed >> 1; //shifting curr_seed
-    new_bit = new_bit << 31; // shifting calculated bit to the last pos of 32-bit register
-    gen->seed = (uint32_t)(curr_seed | new_bit); //placing new bit in the last position of new seed
-    //printf("%u ", gen->seed);
+    uint32_t bit_p=0;
+    uint32_t bit_q=0;
+    uint32_t new_shape = 0;
+    for (int i = 0; i<31; i++) {
+        uint8_t temp = 0;
+        bit_p = curr_seed & (1<<(gen->p)); //getting p,q bits from current seed
+        bit_q = curr_seed & (1<<(gen->q));
+        bit_p = bit_p >> gen->p;
+        bit_q = bit_q >> gen->q;
+        curr_seed = gen->seed >> 1; //shifting curr_seed
+    //dodawanie wyrzuconego bitu do outputowej liczby
+        temp = gen->seed & 1; //zostawianie tylko najmlodszego bitu
+        new_shape = new_shape | temp; //umieszczanie nowego bitu k-bitowej liczby na koncu
+        new_shape = new_shape << 1; //robimy miejsce
+    //umieszczanie xor bitu w seedzie
+        curr_seed = curr_seed | ((bit_p^bit_q)<<31);
+    }
+    gen->seed = curr_seed;
+    //printf("%u \n", new_shape);
     int index = match_range(gen->seed);
     if (index!=-1) {
         buckets[index]++;
